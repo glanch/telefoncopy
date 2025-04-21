@@ -68,6 +68,9 @@
             zipp
             zope-event
             zope-interface
+            pyttsx3
+            pkgs.espeak
+            pkgs.espeak-classic
           ] ++ [
             colorzero
             gpiozero

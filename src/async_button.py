@@ -20,6 +20,26 @@ class AsyncButton:
     async def wait_for_press(self):
         await self._event.wait()
 
+async def wait_for_any_button(input_buttons: list[AsyncButton], timeout: int = None) -> AsyncButton:
+    button_tasks = {button: asyncio.create_task(
+        button.wait_for_press()) for button in input_buttons}
+    timeout_tasks = [asyncio.create_task(asyncio.sleep(timeout))] if timeout else []
+    done, pending = await asyncio.wait(list(button_tasks.values()) + timeout_tasks, return_when=asyncio.FIRST_COMPLETED)
+    # Cancel the others  that didn't finish
+    for task in pending:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+    # done_button is the first button in button_tasks.keys() that finished in done, so we search the button in button_tasks of the first task in done
+    done_without_timeout = [task for task in done if task not in timeout_tasks]
+    if len(done_without_timeout) > 0:
+        first_done_task = next(iter(done_without_timeout))
+        return next(button for button, button_task in button_tasks.items(
+        ) if button_task == first_done_task)
+    else:
+        return None
 
 # class AsyncButton:
 #     def __init__(self, pin, pin_factory=None):

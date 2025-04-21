@@ -1,22 +1,29 @@
 import asyncio
+from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
 import time
 import random  # for simulating input
 from async_audio_test import play_audio, play_audio_loop, record_audio
-from async_button import AsyncButton
+from async_button import AsyncButton, wait_for_any_button
+from contact import Contact, was_dialed
 from gpiozero import Factory
 
-
-# --- File Paths ---
-FILE_PATHS = {
-    'greetings': 'sounds/greeting.wav',  # 'greetings/{contact}.wav',
-    'beep': 'sounds/beep.wav',
-    # 'messages/{contact}_{timestamp}.wav',
-    'messages': 'recordings/{contact}_{timestamp}_greeting.wav',
-    'goodbye': 'sounds/goodbye.wav'  # 'goodbye.wav'
+BEEP_PATH = "sounds/beep.wav"
+GOODBYE_PATH = "sounds/goodbye.wav"
+WAEHLTON_PATH = "sounds/waehlton.wav"
+UNKNOWN_NUMBER_PATH = "sounds/unknown_number.wav"
+RINGBACK_PATH = "sounds/ringback_de.wav"
+STAR_PATH = "sounds/tone_star.wav"
+POUND_PATH = "sounds/tone_pound.wav"
+NUMBER_PATHS = {
+    num: f"sounds/tone_{num}.wav" for num in range(10)
 }
 
+contacts = [
+    Contact(name="Alice", number=[1], greeting_path="sounds/greetings/alice.wav"),
+    Contact(name="Bob", number=[2], greeting_path="sounds/greetings/bob.wav"),
+]
 # --- State Machine Framework ---
 
 
@@ -27,7 +34,7 @@ class StateEnum(Enum):
     PLAY_GREETING = auto()
     RECORD_MESSAGE = auto()
     GOODBYE = auto()
-
+    DIALING = auto()
 
 class State:
     async def run(self, context):
@@ -72,15 +79,20 @@ class HangableState(State):
             return task.result()
 # --- Context Object ---
 
-
+@dataclass
 class Context:
-    def __init__(self, on_hook_button: AsyncButton, off_hook_button: AsyncButton, contact_1_button: AsyncButton, contact_2_button: AsyncButton):
-        self.selected_contact = None
-        self.message_path = None
-        self.on_hook_button = on_hook_button
-        self.off_hook_button = off_hook_button
-        self.contact_1_button = contact_1_button
-        self.contact_2_button = contact_2_button
+    selected_contact: Contact | None
+    message_path: str | None
+    on_hook_button: AsyncButton
+    off_hook_button: AsyncButton
+    number_buttons: dict[int, AsyncButton]
+    star_button: AsyncButton
+    pound_button: AsyncButton
+    dialed_number: list[int] | None
+
+    def get_buttons(self) -> list[AsyncButton]:
+        return [*self.number_buttons.values(), self.star_button, self.pound_button]
+
 # --- Concrete States ---
 
 
@@ -93,41 +105,90 @@ class IdleState(State):
 
 
 class PickedUpState(HangableState):
-    async def run_within(self, context):
+    async def run_within(self, context: Context):
         print("👤 Phone picked up")
 
         try:
-            async def wait_for_contact_button(context):
-                input_buttons = [context.contact_1_button,
-                                context.contact_2_button]
-                button_tasks = {button: asyncio.create_task(
-                    button.wait_for_press()) for button in input_buttons}
-                done, pending = await asyncio.wait(button_tasks.values(), return_when=asyncio.FIRST_COMPLETED)
-                # Cancel the one that didn't finish
-                for task in pending:
-                    task.cancel()
-                    try:
-                        await task
-                    except asyncio.CancelledError:
-                        pass
-                # done_button is the first button in button_tasks.keys() that finished in done, so we search the button in button_tasks of the first task in done
-                first_done_task = next(iter(done))
-                done_button = next(button for button, button_task in button_tasks.items(
-                ) if button_task == first_done_task)
-
-                return next(iter(done))  # optional: return task if needed
-
-            loop = asyncio.create_task(play_audio_loop("sounds/waehlton.wav"))
-
-            await wait_for_contact_button(context)
+            wait_for_dialing_loop = asyncio.create_task(play_audio_loop(WAEHLTON_PATH))
             
-            loop.cancel()
-            
-            return StateEnum.SELECT_CONTACT
+            pressed_buttons = []
+
+            while True:
+                # Only wait for timeout if already a button was pressed
+                pressed_button = await wait_for_any_button(context.get_buttons(), timeout=3 if len(pressed_buttons) > 0 else None) 
+                
+                if not wait_for_dialing_loop.cancelled():
+                    wait_for_dialing_loop.cancel()
+                
+                if pressed_button is None:
+                    # Translate pressed_buttons to list of ints and pound and star
+                    # by finding the key in the number_buttons dict and appending the number if pressed_button is in number_buttons
+                    dialed_number = []
+                    for pressed_button in pressed_buttons:
+                        if pressed_button in context.number_buttons.values():
+                            # Get number by finding key in number_buttons dict keys 
+                            number = next(num for num, btn in context.number_buttons.items() if btn == pressed_button)
+                            dialed_number.append(number)
+                        elif pressed_button == context.star_button:
+                            dialed_number.append("start")
+                        elif pressed_button == context.pound_button:
+                            dialed_number.append("pound")
+
+                    context.dialed_number = dialed_number
+                    print(f"🔢 Dialed number: {context.dialed_number}")
+                    return StateEnum.DIALING
+                else:
+                    pressed_buttons.append(pressed_button)
+
+                if pressed_button == context.star_button:
+                    # Play tone_star.wav
+                    await play_audio(STAR_PATH)
+                elif pressed_button == context.pound_button:
+                    # Play tone_pound.wav
+                    await play_audio(POUND_PATH)
+                elif pressed_button in context.number_buttons.values():
+                    # Get number by finding key in number_buttons dict
+                    number = next(num for num, btn in context.number_buttons.items() if btn == pressed_button)
+                    # Play tone_<number>.wav
+                    await play_audio(NUMBER_PATHS[number])
 
         except asyncio.CancelledError:
-            loop.cancel()
+            wait_for_dialing_loop.cancel()
             raise
+
+class DialingState(HangableState):
+    async def run_within(self, context):
+        print("👤 Dialing...")
+
+        assert context.dialed_number is not None
+
+        # Find out contact
+        contact = await get_user_contact_input(context.dialed_number)
+
+        # Play tones
+        for number in context.dialed_number:
+            if number >= 0 and number < 10:
+                await play_audio(f"sounds/tone_{number}.wav")
+            else:
+                print(f"❌ Invalid number: {number}")
+        
+        # Find out contact
+        contact = was_dialed(context.dialed_number, contacts)
+        # If contact is None, play unknown number
+        if contact is None:
+            await play_audio(UNKNOWN_NUMBER_PATH)
+            return StateEnum.PICKED_UP
+        else:
+            context.selected_contact = contact
+
+        # Play ringback random number of times between 3 and 10
+        ringback_count = random.randint(3, 10)
+        print(f"🔔 Random ringback count: {ringback_count}")
+        for _ in range(random.randint(3, 10)):
+            await play_audio(RINGBACK_PATH)
+                        
+        return StateEnum.PLAY_GREETING
+
 
 class SelectContactState(HangableState):
     async def run_within(self, context):
@@ -139,10 +200,9 @@ class SelectContactState(HangableState):
 class PlayGreetingState(HangableState):
     async def run_within(self, context):
         print(f"📼 Playing greeting for {context.selected_contact}")
-        path = FILE_PATHS['greetings'].format(contact=context.selected_contact)
 
-        await play_audio(path)
-        await play_audio(FILE_PATHS['beep'])
+        await play_audio(context.selected_contact.greeting_path)
+        await play_audio(BEEP_PATH)
         
         return StateEnum.RECORD_MESSAGE
 
@@ -150,72 +210,23 @@ class RecordMessageState(HangableState):
     async def run_within(self, context):
         print("🎙️ Recording started...")
 
-        filename = f"recordings/{context.selected_contact}_{int(time.time())}.wav"
-        context.message_path = filename
+        # Create recordings directory if it doesn't exist
+        recordings_dir = Path("recordings") / Path(context.selected_contact.name)
+        recordings_dir.mkdir(parents=True, exist_ok=True)
 
-        # Start recording task (long duration, but we might cancel it)
+        # Create unique filename
+        filename = recordings_dir / Path(f"{int(time.time())}.wav")
+
+        # Record audio 
         await record_audio(filename)
         return StateEnum.GOODBYE
-        # hangup_detected = await self.do_and_wait_for_hangup(record_task, context)
-        # if hangup_detected:
-        #     return StateEnum.IDLE
-        # else:
-        #     return StateEnum.RECORD_MESSAGE
-
-        # hangup_detected = False
-        # # Create a task to wait for hangup button press
-        # hangup_task = asyncio.create_task(
-        #     context.on_hook_button.wait_for_press())
-
-        # # Wait for either recording to complete or hangup button press
-        # done, pending = await asyncio.wait(
-        #     [record_task, hangup_task],
-        #     return_when=asyncio.FIRST_COMPLETED
-        # )
-
-        # # Cancel whichever task didn't complete
-        # for task in pending:
-        #     task.cancel()
-        #     try:
-        #         await task
-        #     except asyncio.CancelledError:
-        #         pass
-
-        # # Check if hangup occurred
-        # if hangup_task in done:
-        #     hangup_detected = True
-
-        # try:
-        #     while not record_task.done():
-        #         if await detect_on_hook():  # hook detection should return True if hangup
-        #             print("☎️ Hangup detected, cancelling recording...")
-        #             record_task.cancel()
-        #             hangup_detected = True
-        #             break
-        #         await asyncio.sleep(0.2)  # Polling interval
-
-        #     # If hangup happened, we wait briefly before saving
-        #     if hangup_detected:
-        #         await asyncio.sleep(0.3)
-
-        #     await record_task  # Ensure the recording finishes (or cancellation completes)
-
-        # except asyncio.CancelledError:
-        #     print("⚠️ Recording task was cancelled externally.")
-
-        # except Exception as e:
-        #     print(f"❌ Recording error: {e}")
-
-        # if hangup_detected:
-        #     return StateEnum.IDLE
-        # else:
-        #     return StateEnum.GOODBYE
+        
 
 
 class GoodbyeState(HangableState):
-    async def run(self, context):
+    async def run_within(self, context):
         print("👋 Playing goodbye message")
-        await play_audio(FILE_PATHS['goodbye'])
+        await play_audio(GOODBYE_PATH)
         return StateEnum.IDLE
 
 
@@ -228,20 +239,21 @@ state_map = {
     StateEnum.PLAY_GREETING: PlayGreetingState(),
     StateEnum.RECORD_MESSAGE: RecordMessageState(),
     StateEnum.GOODBYE: GoodbyeState(),
+    StateEnum.DIALING: DialingState(),
 }
 
 # --- Async Main Loop ---
 
 
-async def run_statemachine(pin_factory: Factory, on_hook_pin, off_hook_pin, contact_1_pin, contact_2_pin):
+
+async def run_statemachine(pin_factory: Factory, on_hook_pin, off_hook_pin, number_button_pins: dict[int, object], star_button_pin, pound_button_pin):
     on_hook_button = AsyncButton(on_hook_pin.number, pin_factory=pin_factory)
     off_hook_button = AsyncButton(off_hook_pin.number, pin_factory=pin_factory)
-    contact_1_button = AsyncButton(
-        contact_1_pin.number, pin_factory=pin_factory)
-    contact_2_button = AsyncButton(
-        contact_2_pin.number, pin_factory=pin_factory)
-    context = Context(on_hook_button=on_hook_button, off_hook_button=off_hook_button,
-                      contact_1_button=contact_1_button, contact_2_button=contact_2_button)
+    number_buttons = { num: AsyncButton(pin.number, pin_factory=pin_factory) for num, pin in number_button_pins.items() }
+    star_button = AsyncButton(star_button_pin.number, pin_factory=pin_factory)
+    pound_button = AsyncButton(pound_button_pin.number, pin_factory=pin_factory)
+
+    context = Context(None, None, on_hook_button, off_hook_button, number_buttons, star_button, pound_button, None)
     state = StateEnum.IDLE
 
     while True:
@@ -249,9 +261,7 @@ async def run_statemachine(pin_factory: Factory, on_hook_pin, off_hook_pin, cont
         state = next_state
 
 
-async def get_user_contact_input():
-    # Simulate contact selection
-    await asyncio.sleep(0.5)
+async def get_user_contact_input(dialed_number: list[int]):
     return random.choice(['Alice']) #, 'Bob', 'Charlie'])
 
 # --- Run It ---
