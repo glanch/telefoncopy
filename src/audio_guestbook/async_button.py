@@ -7,22 +7,32 @@ class AsyncButton:
     def __init__(self, pin, pin_factory=None):
         self.button = Button(pin, pin_factory=pin_factory)
         self._loop = asyncio.get_event_loop()
-        self._event = asyncio.Event()
+        self._press_event = asyncio.Event()
+        self._depress_event = asyncio.Event()
         self.button.when_pressed = self._handle_press
         self.button.when_deactivated = self._handle_depress
 
     def _handle_press(self, x):
-        self._loop.call_soon_threadsafe(self._event.set)
+        self._loop.call_soon_threadsafe(self._depress_event.clear)
+        self._loop.call_soon_threadsafe(self._press_event.set)
 
     def _handle_depress(self, x):
-        self._loop.call_soon_threadsafe(self._event.clear)
-
+        self._loop.call_soon_threadsafe(self._press_event.clear)
+        self._loop.call_soon_threadsafe(self._depress_event.set)
+        
+    async def wait_for_press_and_release(self):
+        await self._press_event.wait()
+        await self._depress_event.wait()
+        
     async def wait_for_press(self):
-        await self._event.wait()
+        await self._press_event.wait()
+
+    async def wait_for_depress(self):
+        await self._depress_event.wait()
 
 async def wait_for_any_button(input_buttons: list[AsyncButton], timeout: int = None) -> AsyncButton:
     button_tasks = {button: asyncio.create_task(
-        button.wait_for_press()) for button in input_buttons}
+        button.wait_for_press_and_release()) for button in input_buttons}
     timeout_tasks = [asyncio.create_task(asyncio.sleep(timeout))] if timeout else []
     done, pending = await asyncio.wait(list(button_tasks.values()) + timeout_tasks, return_when=asyncio.FIRST_COMPLETED)
     # Cancel the others  that didn't finish

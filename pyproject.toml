@@ -1,0 +1,22 @@
+[project]
+name = "audio-guestbook"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "gpiozero>=2.0.1",
+    "urllib3>=2.2.3",
+]
+
+[project.scripts]
+telephone = "audio_guestbook:run_telephone_input_loop"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.6.7",
+]

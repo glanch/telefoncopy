@@ -1,11 +1,14 @@
 import asyncio
 import signal
 
+_APLAY = "aplay"
+_ARECORD = "arecord"
+_FFPLAY = "ffplay"
 
 async def play_audio(file_path: str):
     """Play a WAV file using aplay. Can be cancelled/stopped."""
     process = await asyncio.create_subprocess_exec(
-        "aplay", file_path,
+        _APLAY, file_path,
         stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.DEVNULL
     )
@@ -20,7 +23,7 @@ async def play_audio(file_path: str):
 async def play_audio_loop(file_path: str):
     """Play an audio file in a loop using ffplay. Can be cancelled/stopped."""
     process = await asyncio.create_subprocess_exec(
-        "ffplay", "-nodisp", "-autoexit", "-loop", "0", file_path,
+        _FFPLAY, "-nodisp", "-autoexit", "-loop", "0", file_path,
         stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.DEVNULL
     )

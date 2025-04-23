@@ -1,10 +1,13 @@
-from statemachine import run_statemachine
 from gpiozero.pins.mock import MockFactory
-from async_button import AsyncButton
+from .statemachine import run_statemachine
+from .async_button import AsyncButton
 
 import asyncio
 
-async def main():
+def main():
+    asyncio.run(run_telephone_input_loop())
+
+async def run_telephone_input_loop():
     factory = MockFactory()
     on_hook_pin = factory.pin(17)
     off_hook_pin = factory.pin(18)
@@ -77,5 +80,4 @@ async def main():
         task.cancel()
 
 if __name__ == "__main__":
-    asyncio.run(main())
-
+    main()
