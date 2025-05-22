@@ -5,8 +5,11 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "fastapi>=0.115.12",
     "gpiozero>=2.0.1",
+    "sqlmodel>=0.0.24",
     "urllib3>=2.2.3",
+    "uvicorn>=0.34.2",
 ]
 
 [project.scripts]

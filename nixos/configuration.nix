@@ -1,39 +1,42 @@
 # configuration.nix
 
-{ pkgs, ... }:
+{ self, pkgs, ... }:
 
 {
   imports = [
     ./hardware-configuration.nix
   ];
-  
+
+
   # Use the extlinux boot loader. (NixOS wants to enable GRUB by default)
   boot.loader.grub.enable = false;
   # Enables the generation of /boot/extlinux/extlinux.conf
   boot.loader.generic-extlinux-compatible.enable = true;
-  
+
+  users.users.root.password = "root"; # =test use mkpasswd to generate
   # networking config. important for ssh!
+
+  # rtkit is optional but recommended
+  security.rtkit.enable = true;
+  services.pulseaudio = {
+    enable = true;
+  
+  };
+
   networking = {
     hostName = "pi";
     interfaces.end0 = {
       ipv4.addresses = [{
-        address = "192.168.1.42";
+        address = "10.0.0.5";
         prefixLength = 24;
       }];
     };
-    defaultGateway = {
-      address = "192.168.1.1"; # or whichever IP your router is
-      interface = "end0";
-    };
-    nameservers = [
-      "192.168.1.1" # or whichever DNS server you want to use
-    ];
   };
-  
+
   # the user account on the machine
   users.users.admin = {
     isNormalUser = true;
-    extraGroups = [ "wheel" ]; # Enable ‘sudo’ for the user.
+    extraGroups = [ "wheel" "audio" ]; # Enable ‘sudo’ for the user.
     password = "admin";
   };
 
@@ -44,6 +47,10 @@
   environment.systemPackages = with pkgs; [
     neovim
     wget
+    self.packages.aarch64-linux.default
+    alsa-utils
+    ffmpeg
+    mpv
   ];
 
   # allows the use of flakes

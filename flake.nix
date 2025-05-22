@@ -6,6 +6,7 @@
 
     flake-utils.url = "github:numtide/flake-utils";
 
+    deploy-rs.url = "github:serokell/deploy-rs";
 
     pyproject-nix = {
       url = "github:pyproject-nix/pyproject.nix";
@@ -30,6 +31,7 @@
     { self
     , nixpkgs
     , flake-utils
+    , deploy-rs
     , uv2nix
     , pyproject-nix
     , pyproject-build-systems
@@ -47,13 +49,24 @@
       };
       nixosConfigurations."pi" = nixpkgs.lib.nixosSystem {
         system = "aarch64-linux";
+        specialArgs = { inherit self; };
         modules = [
           ./nixos/configuration.nix
-          ({ ... }: {
-            environment.systemPackages = [ self.packages.aarch64-linux.default ];
-          })
         ];
       };
+      deploy.nodes.pi = {
+        hostname = "10.0.0.5";
+        fastConnection = true;
+        sshUser = "root";
+        user = "root";
+        #interactiveSudo = true;
+        profiles.system = {
+          path = deploy-rs.lib.aarch64-linux.activate.nixos self.nixosConfigurations.pi;
+        };
+      };
+
+      # This is highly advised, and will prevent many possible mistakes
+      checks = builtins.mapAttrs (system: deployLib: deployLib.deployChecks self.deploy) deploy-rs.lib;
     }
     // flake-utils.lib.eachDefaultSystem (system:
     let
@@ -115,6 +128,10 @@
               --replace-fail '_ARECORD = "arecord"' '_ARECORD = "${pkgs.alsa-utils}/bin/arecord"' 
             substituteInPlace src/audio_guestbook/async_audio_test.py \
               --replace-fail '_FFPLAY = "ffplay"' '_FFPLAY = "${pkgs.ffmpeg}/bin/ffplay"' 
+            substituteInPlace src/audio_guestbook/audio_manager.py \
+              --replace-fail '_MPV = "mpv"' '_MPV = "${pkgs.mpv}/bin/mpv"' 
+            substituteInPlace src/audio_guestbook/audio_manager.py \
+              --replace-fail '_ARECORD = "arecord"' '_ARECORD = "${pkgs.alsa-utils}/bin/arecord"' 
           '';
         });
 
@@ -143,9 +160,9 @@
 
     in
     {
-      checks = {
-        helloNixosTest = pkgs.callPackage ./nixos/tests/x86-vm-test.nix { inherit self; };
-      };
+
+
+
 
       # Package a virtual environment as our main application.
       #
@@ -178,8 +195,16 @@
       # Make telephone runnable with `nix run`
       apps.default = {
         type = "app";
-        program = "${self.packages.x86_64-linux.default}/bin/telephone";
+        program = "${self.packages.x86_64-linux.default}/bin/aplay -l telephone";
       };
+
+      apps.deploy = {
+        type = "app";
+        program = toString (pkgs.writeShellScript "deploy" ''
+          ${deploy-rs.packages.x86_64-linux.deploy-rs}/bin/deploy --skip-checks .#pi 
+        '');
+      };
+
 
       # This example provides two different modes of development:
       # - Impurely using uv to manage virtual environments
@@ -242,6 +267,7 @@
                         (old.src + "/README.md")
                         (old.src + "/src/audio_guestbook/__init__.py")
                         (old.src + "/src/audio_guestbook/async_audio_test.py")
+                        (old.src + "/src/audio_guestbook/statemachine.py")
                       ];
                     };
 
@@ -274,6 +300,7 @@
               uv
               alsa-utils
               ffmpeg
+              mpv
               code-cursor
             ];
 

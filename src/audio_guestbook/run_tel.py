@@ -1,25 +1,13 @@
 from gpiozero.pins.mock import MockFactory
+
+from audio_guestbook.audio_manager import AudioManager
 from .statemachine import run_statemachine
 from .async_button import AsyncButton
-from .audio_manager import AudioManager
 
 import asyncio
 
 def main():
     asyncio.run(run_telephone_input_loop())
-
-async def run_telephone_input_loop_with_real_input():
-    factory = MockFactory()
-    on_hook_pin = factory.pin(17)
-    off_hook_pin = factory.pin(18)
-    number_button_pins = { num: factory.pin(pin) for num, pin in enumerate(range(1, 11), start=0) }
-    star_button_pin = factory.pin(23)
-    pound_button_pin = factory.pin(24)
-    
-    # Create audio manager with default devices
-    audio_manager = AudioManager()
-    
-    await run_statemachine(factory, on_hook_pin, off_hook_pin, number_button_pins, star_button_pin, pound_button_pin, audio_manager)
 
 async def run_telephone_input_loop():
     factory = MockFactory()
@@ -29,9 +17,7 @@ async def run_telephone_input_loop():
     star_button_pin = factory.pin(23)
     pound_button_pin = factory.pin(24)
     
-    # Create audio manager with default devices
     audio_manager = AudioManager("alsa/plughw:4,0", "plughw:4,0")
-    
     statemachine_task = asyncio.create_task(run_statemachine(factory, on_hook_pin, off_hook_pin, number_button_pins, star_button_pin, pound_button_pin, audio_manager))
     
     async def read_user_input():
