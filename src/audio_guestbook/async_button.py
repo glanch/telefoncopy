@@ -4,8 +4,8 @@ from gpiozero.pins import Factory as PinFactory
 
 
 class AsyncButton:
-    def __init__(self, pin, pin_factory=None):
-        self.button = Button(pin, pin_factory=pin_factory)
+    def __init__(self, pin, pin_factory=None,bounce_time=None):
+        self.button = Button(pin, pin_factory=pin_factory, pull_up=True, bounce_time=bounce_time)
         self._loop = asyncio.get_event_loop()
         self._press_event = asyncio.Event()
         self._depress_event = asyncio.Event()

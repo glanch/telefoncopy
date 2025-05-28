@@ -17,7 +17,7 @@ async def run_telephone_input_loop():
     star_button_pin = factory.pin(23)
     pound_button_pin = factory.pin(24)
     
-    audio_manager = AudioManager("alsa/plughw:4,0", "plughw:4,0")
+    audio_manager = AudioManager("alsa_output.usb-Logitech_Logitech_G430_Gaming_Headset-00.analog-stereo", "alsa_input.usb-Logitech_Logitech_G430_Gaming_Headset-00.mono-fallback")
     statemachine_task = asyncio.create_task(run_statemachine(factory, on_hook_pin, off_hook_pin, number_button_pins, star_button_pin, pound_button_pin, audio_manager))
     
     async def read_user_input():

@@ -3,7 +3,7 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-
+    nixos-hardware.url = "github:NixOS/nixos-hardware/master";
     flake-utils.url = "github:numtide/flake-utils";
 
     deploy-rs.url = "github:serokell/deploy-rs";
@@ -35,6 +35,7 @@
     , uv2nix
     , pyproject-nix
     , pyproject-build-systems
+    , nixos-hardware
     , ...
     }:
     let
@@ -52,6 +53,7 @@
         specialArgs = { inherit self; };
         modules = [
           ./nixos/configuration.nix
+          nixos-hardware.nixosModules.raspberry-pi-4
         ];
       };
       deploy.nodes.pi = {
@@ -129,9 +131,11 @@
             substituteInPlace src/audio_guestbook/async_audio_test.py \
               --replace-fail '_FFPLAY = "ffplay"' '_FFPLAY = "${pkgs.ffmpeg}/bin/ffplay"' 
             substituteInPlace src/audio_guestbook/audio_manager.py \
-              --replace-fail '_MPV = "mpv"' '_MPV = "${pkgs.mpv}/bin/mpv"' 
+              --replace-fail '_PAPLAY = "paplay"' '_PAPLAY = "${pkgs.pulseaudio}/bin/paplay"' 
             substituteInPlace src/audio_guestbook/audio_manager.py \
-              --replace-fail '_ARECORD = "arecord"' '_ARECORD = "${pkgs.alsa-utils}/bin/arecord"' 
+              --replace-fail '_PACTL = "pactl"' '_PACTL = "${pkgs.pulseaudio}/bin/pactl"'   
+            substituteInPlace src/audio_guestbook/audio_manager.py \
+              --replace-fail '_FFMPEG = "ffmpeg"' '_FFMPEG = "${pkgs.ffmpeg}/bin/ffmpeg"' 
           '';
         });
 
@@ -267,7 +271,9 @@
                         (old.src + "/README.md")
                         (old.src + "/src/audio_guestbook/__init__.py")
                         (old.src + "/src/audio_guestbook/async_audio_test.py")
+                        (old.src + "/src/audio_guestbook/audio_manager.py")
                         (old.src + "/src/audio_guestbook/statemachine.py")
+                        (old.src + "/src/audio_guestbook/settings.py")
                       ];
                     };
 
@@ -300,6 +306,7 @@
               uv
               alsa-utils
               ffmpeg
+              pulseaudio
               mpv
               code-cursor
             ];

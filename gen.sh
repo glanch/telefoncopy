@@ -12,11 +12,11 @@ sox -n sounds/tone_6.wav synth 0.3 sine 770 sine 1477
 sox -n sounds/tone_7.wav synth 0.3 sine 852 sine 1209
 sox -n sounds/tone_8.wav synth 0.3 sine 852 sine 1336
 sox -n sounds/tone_9.wav synth 0.3 sine 852 sine 1477
-
+qw
 # Row 4
 sox -n sounds/tone_star.wav synth $len sine 941 sine 1209
 sox -n sounds/tone_0.wav synth $len sine 941 sine 1336
-sox -n sounds/tone_pund.wav synth $len sine 941 sine 1477
+sox -n sounds/tone_pound.wav synth $len sine 941 sine 1477
 
 # Wählton 
 sox -n sounds/waehlton.wav synth 30 sine 425
