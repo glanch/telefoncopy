@@ -195,7 +195,7 @@ class DialingState(HangableState):
         for number in context.dialed_number:
             tone_path = None
             if (isinstance(number, int) and number >= 0 and number < 10) or (isinstance(number, str) and number in ["star", "pound"]):
-                tone_path = SOUNDS_PATH / f"sounds/dtmf/dtmf-{number}-short.wav"
+                tone_path = SOUNDS_PATH / f"dtmf/dtmf-{number}-short.wav"
                 await audio_manager.play_audio(tone_path)
             else:
                 print(f"❌ Invalid number: {number}")

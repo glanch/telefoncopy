@@ -68,14 +68,14 @@
   boot.kernelParams = [ "snd_bcm2835.enable_hdmi=1" "snd_bcm2835.enable_headphones=1" ];
   networking = {
     hostName = "pi";
-    interfaces.end0 = {
+    interfaces.eth0 = {
       ipv4.addresses = [{
         address = "10.0.0.5";
         prefixLength = 24;
       }];
     };
   };
-
+  networking.dhcpcd.wait = "if-carrier-up";
   # the user account on the machine
   users.users.admin = {
     isNormalUser = true;

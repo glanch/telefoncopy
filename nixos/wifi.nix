@@ -6,13 +6,9 @@ let
   password = "MySecretPassword";
 in
 {
+  
   networking.usePredictableInterfaceNames = false;
 
-  # Enable forwarding packets
-  boot.kernel.sysctl = {
-    "net.ipv6.conf.all.forwarding" = 1;
-    "net.ipv4.conf.all.forwarding" = 1;
-  };
   networking.interfaces.wlan0.ipv4.addresses = [
     {
       address = "10.0.64.1";
@@ -20,46 +16,48 @@ in
     }
   ];
   # Create an access point
-  services.hostapd.enable = true;
+  # services.hostapd.enable = true;
 
-  services.hostapd.radios.wlan0 = {
-    band = "2g"; # Equivalent to hw_mode=g
-    channel = 1;
-    countryCode = "DE";
+  # services.hostapd.radios.wlan0 = {
+  #   band = "2g"; # Equivalent to hw_mode=g
+  #   channel = 1;
+  #   countryCode = "DE";
 
-    wifi4.capabilities = [
-      "HT20"
-      "SHORT-GI-20"
-      "DSSS_CCK-40"
-    ];
+  #   wifi4.capabilities = [
+  #     "HT20"
+  #     "SHORT-GI-20"
+  #     "DSSS_CCK-40"
+  #   ];
 
-    networks.wlan0 = {
-      ssid = "WLANrouter";
-      authentication = {
-        mode = "wpa2-sha1";
-        wpaPassword = "testtest";
-      };
-    };
-  };
+  #   networks.wlan0 = {
+  #     ssid = "WLANrouter";
+  #     authentication = {
+  #       mode = "wpa2-sha1";
+  #       wpaPassword = "testtest";
+  #     };
+  #   };
+  # };
 
   networking.interfaces.end0.useDHCP = false;
+  networking.interfaces.eth0.useDHCP = false;
 
-  # Updated dnsmasq config using `settings`
+  # # Updated dnsmasq config using `settings`
   services.dnsmasq = {
     enable = true;
+    resolveLocalQueries = false;
     settings = {
       interface = interface;
       bind-interfaces = true;
       domain-needed = true;
       bogus-priv = true;
       dhcp-range = "10.0.64.10,10.0.64.100,12h";
+      no-dhcp-interface = "eth0";
       dhcp-option = [
         "3,10.0.64.1" # gateway
         "6,10.0.64.1" # DNS
       ];
     };
   };
-
   # # Enable NAT for internet sharing
   # networking.nat = {
   #   enable = true;

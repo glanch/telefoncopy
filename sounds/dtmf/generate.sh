@@ -23,7 +23,7 @@ generate_key() {
 }
 
 generate_key "" "0.1"
-generate_key "-short" "0.03"
+generate_key "-short" "0.07"
 
 sox -n dtmf-us-busy.wav synth 10 sine 480 sine 620 channels 1
 sox -n dtmf-rbt-US.wav synth 10 sine 440 sine 480 channels 1
