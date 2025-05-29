@@ -16,27 +16,27 @@ in
     }
   ];
   # Create an access point
-  # services.hostapd.enable = true;
+  services.hostapd.enable = true;
 
-  # services.hostapd.radios.wlan0 = {
-  #   band = "2g"; # Equivalent to hw_mode=g
-  #   channel = 1;
-  #   countryCode = "DE";
+  services.hostapd.radios.wlan0 = {
+    band = "2g"; # Equivalent to hw_mode=g
+    channel = 1;
+    countryCode = "DE";
 
-  #   wifi4.capabilities = [
-  #     "HT20"
-  #     "SHORT-GI-20"
-  #     "DSSS_CCK-40"
-  #   ];
+    wifi4.capabilities = [
+      "HT20"
+      "SHORT-GI-20"
+      "DSSS_CCK-40"
+    ];
 
-  #   networks.wlan0 = {
-  #     ssid = "WLANrouter";
-  #     authentication = {
-  #       mode = "wpa2-sha1";
-  #       wpaPassword = "testtest";
-  #     };
-  #   };
-  # };
+    networks.wlan0 = {
+      ssid = "WLANrouter";
+      authentication = {
+        mode = "wpa2-sha1";
+        wpaPassword = "testtest";
+      };
+    };
+  };
 
   networking.interfaces.end0.useDHCP = false;
   networking.interfaces.eth0.useDHCP = false;
